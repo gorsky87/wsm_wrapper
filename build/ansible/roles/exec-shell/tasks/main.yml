@@ -1,0 +1,10 @@
+---
+
+- debug:
+    var: cmds
+
+- include_tasks: "run-single-cmd.yml"
+  loop:          "{{ cmds }}"
+  loop_control:
+    loop_var: cmd
+  when: cmds is defined

@@ -1,0 +1,37 @@
+---
+
+- name: drush -y en migrate
+  shell: drush -y en migrate migrate_drupal migrate_drupal_multilingual migrate_tools
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush mim d7_field
+  shell: drush mim d7_field
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush mim d7_field_instance
+  shell: drush mim d7_field_instance
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush mim d7_field_instance_widget_settings
+  shell: drush mim d7_field_instance_widget_settings
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush mim d7_user_role
+  shell: drush mim d7_user_role
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush mim d7_user
+  shell: drush mim d7_user
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"

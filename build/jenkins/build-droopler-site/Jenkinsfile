@@ -1,0 +1,187 @@
+/*
+ * This is common build script for all sites based on droopler, used to
+ * build image with all sources and styles. Deploy is not included.
+ */
+
+// Initialize a LinkedHashMap / object to share between stages
+def pipelineContext = [:]
+// This variable contains cleaned GIT_TAG from special characters
+def dockerTag = ""
+
+pipeline {
+
+  agent { label params.AGENT }
+
+  options {
+    ansiColor('xterm')
+    timestamps()
+  }
+
+  environment {
+    GIT_CREDENTIALS = "c279944a-fc9e-467b-8361-f5c95d9f3c9d"
+  }
+
+  parameters {
+    string      (name: 'GIT_PROJECT_URL',  defaultValue: params.GIT_PROJECT_URL ?: '', description: 'Direct link to git repository, preferably using SSH protocol')
+    gitParameter(name: 'GIT_TAG',          defaultValue: 'master', branchFilter: 'origin/(.*)', type: 'PT_BRANCH_TAG', useRepository: params.GIT_PROJECT_URL, sortMode: 'DESCENDING_SMART')
+    string      (name: 'DOCKER_REPO',      defaultValue: params.DOCKER_REPO ?: '', description: 'URL of the docker registry where image will be uploaded')
+    string      (name: 'DOCKER_CREDS',     defaultValue: params.DOCKER_CREDS ?: '', description: 'ID of credentials to docker registry stored in Jenkins')
+    choice      (name: 'PUSH_TO_REGISTRY', choices: ['no', 'yes'], description: 'When yes is selected docker image will be published in docker registry')
+    string      (name: 'AGENT',            defaultValue: params.AGENT ?: '', description: 'Jenkins agent which will be used to run this pipeline')
+  }
+
+  stages {
+    stage('Pre-Build checks'){
+      steps {
+        echo "Environment variables check:"
+        script {
+          dockerTag = params.GIT_TAG.replace("/", "-")
+
+          sh   '''
+            env
+
+            if [ -z "${GIT_PROJECT_URL}" ]; then
+              echo "GIT_PROJECT_URL parameter is not set. Aborting."
+              exit 1
+            fi
+
+            if [ -z "${GIT_TAG}" ]; then
+              echo "GIT_TAG parameter is not set. Aborting."
+              exit 1
+            fi
+
+            if [ -z "${DOCKER_REPO}" ]; then
+              echo "DOCKER_REPO parameter is not set. Aborting."
+              exit 1
+            fi
+
+            if [ -z "${DOCKER_CREDS}" ]; then
+              echo "DOCKER_CREDS parameter is not set. Aborting."
+              exit 1
+            fi
+          '''
+        }
+      }
+    }
+
+    stage('Clone repo') {
+
+      steps {
+
+        /* Checkout wrapper based on Jenkins variables */
+        checkout([
+          $class: 'GitSCM',
+          userRemoteConfigs: [[url: "${GIT_URL}", credentialsId: "${GIT_CREDENTIALS}"]],
+          branches: [[name: "${GIT_COMMIT}"]],
+          extensions: [
+            [$class: 'SubmoduleOption', disableSubmodules: false, recursiveSubmodules: true, ]
+          ],
+          doGenerateSubmoduleConfigurations: false,
+          submoduleCfg: []
+        ])
+
+        /* Checkout project base on environment variables */
+        checkout([
+          $class: 'GitSCM',
+          userRemoteConfigs: [[url: "${params.GIT_PROJECT_URL}", credentialsId: "${GIT_CREDENTIALS}"]],
+          branches: [[name: "${params.GIT_TAG}"]],
+          extensions: [
+            [$class: 'RelativeTargetDirectory', relativeTargetDir: 'app']
+          ]
+        ])
+      }
+    }
+
+    stage('Build project') {
+      steps {
+        sh '''
+          echo "Build project"
+
+          cp ./build/.env.dev ./build/.env
+          sed -i "s|SETUID=1000|SETUID=7000|" ./build/.env
+          sed -i "s|droopler|drp-${BUILD_NUMBER}|" ./build/.env
+
+          ./exec.sh pull -q
+          ./exec.sh run composer install --no-dev --optimize-autoloader
+          ./exec.sh run composer drupal:scaffold
+          ./exec.sh npm-theme install
+          ./exec.sh gulp-theme clean
+          ./exec.sh gulp-theme dist
+
+          ./exec.sh npm-subtheme install
+          ./exec.sh gulp-subtheme clean
+          ./exec.sh gulp-subtheme dist
+        '''
+      }
+    }
+
+    stage('Build image') {
+      steps {
+        echo "Build docker image"
+
+        sh '''
+          # Remove files left after compilation
+          rm -rf "${WORKSPACE}/app/web/themes/custom/droopler_subtheme/node_modules"
+          rm -rf "${WORKSPACE}/app/web/profiles/contrib/droopler/themes/custom/droopler_theme/node_modules"
+
+          # Create dir for sync
+          mkdir -p "${WORKSPACE}/app/drupal_config/sync"
+
+          # Remove not required git files
+          find "${WORKSPACE}/app" -type d -name '.git' | xargs rm -rf
+
+          # Remove settings used for build process
+          rm -f "${WORKSPACE}/app/web/sites/default/settings.php"
+        '''
+
+        script {
+          pipelineContext.dockerImage = docker.build("${params.DOCKER_REPO}:${dockerTag}", "--pull --no-cache -f ./build/jenkins/build-droopler-site/Dockerfile .")
+        }
+      }
+    }
+
+    stage('Push image') {
+      when {
+        expression { params.PUSH_TO_REGISTRY == 'yes' }
+      }
+      steps {
+        echo "Push image to docker hub"
+
+        script {
+          docker.withRegistry("https://${params.DOCKER_REPO}", "${params.DOCKER_CREDS}") {
+            pipelineContext.dockerImage.push("${dockerTag}")
+          }
+        }
+      }
+    }
+  }
+
+  post {
+    success {
+      echo 'Build was finished successfully'
+      //slackSend channel: '#monitoring', color: '#43e06a', iconEmoji: '', message: "${JOB_NAME} - #${BUILD_NUMBER} (<${BUILD_URL}|View Job>) \n\n Automatic update deployed: ", tokenCredentialId: 'slack-key', username: ''
+    }
+
+    aborted {
+      echo 'Build was aborted'
+    }
+
+    failure {
+      echo 'Build was finished with failure'
+      //slackSend channel: '#monitoring', color: '#e04343', iconEmoji: '', message: "${JOB_NAME} - #${BUILD_NUMBER} (<${BUILD_URL}|View Job>) \n\n Automatic update failed: ", tokenCredentialId: 'slack-key', username: ''
+    }
+
+    cleanup {
+      echo 'Cleaning environment'
+
+      dir("${WORKSPACE}") {
+        sh '''
+          ./exec.sh down -v
+        '''
+      }
+
+      /* Clean workspace after build */
+      deleteDir()
+    }
+  }
+}

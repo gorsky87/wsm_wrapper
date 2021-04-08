@@ -1,0 +1,55 @@
+---
+
+- name: drush vdel -y 'smtp_client_hostname'
+  shell: drush -l {{ item }} vdel -y 'smtp_client_hostname'
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush vdel -y 'smtp_client_helo'
+  shell: drush -l {{ item }} vdel -y 'smtp_client_helo'
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush vset -y 'provider_default' 'mailcatcher'
+  shell: drush -l {{ item }} vset -y 'provider_default' 'mailcatcher'
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush vset -y 'smtp_default_provider' 'mailcatcher'
+  shell: drush -l {{ item }} vset -y 'smtp_default_provider' 'mailcatcher'
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush vset -y 'smtp_host' 'mailcatcher'
+  shell: drush -l {{ item }} vset -y 'smtp_host' 'mailcatcher'
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush vset -y 'smtp_protocol' 'standard'
+  shell: drush -l {{ item }} vset -y 'smtp_protocol' 'standard'
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush vset -y 'smtp_port' 1025
+  shell: drush -l {{ item }} vset -y 'smtp_port' 1025
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush vdel -y 'smtp_username'
+  shell: drush -l {{ item }} vdel -y 'smtp_username'
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush vdel -y 'smtp_password'
+  shell: drush -l {{ item }} vdel -y 'smtp_password'
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"

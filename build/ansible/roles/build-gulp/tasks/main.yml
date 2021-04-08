@@ -1,0 +1,15 @@
+---
+
+  - name: docker --version
+    shell: docker --version 
+
+  - name: whoami
+    shell: whoami
+
+  - name: docker-compose -f docker-compose.{{ D_ENV }}.yml run -w /app/web/themes/custom/droopler_subtheme gulp npm install
+    shell: docker-compose -f docker-compose.{{ D_ENV }}.yml run -w /app/web/themes/custom/droopler_subtheme gulp npm install
+
+#docker-compose -f docker-compose.dev.yml run -w /var/www/web/themes/custom/droopler_subtheme gulp npm install
+#docker-compose -f docker-compose.dev.yml run -w /var/www/web/themes/custom/droopler_subtheme gulp gulp clean
+#docker-compose -f docker-compose.dev.yml run -w /var/www/web/themes/custom/droopler_subtheme gulp gulp compile
+#docker-compose -f docker-compose.dev.yml run -w /var/www/web/themes/custom/droopler_subtheme gulp gulp debug

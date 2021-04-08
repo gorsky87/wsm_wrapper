@@ -1,0 +1,139 @@
+// Initialize a LinkedHashMap / object to share between stages
+def pipelineContext = [:]
+
+pipeline {
+
+  agent { label 'dev-21.droptica.org' }
+
+  options {
+    ansiColor('xterm')
+    timestamps()
+  }
+
+  environment {
+    GIT_CREDENTIALS = "c279944a-fc9e-467b-8361-f5c95d9f3c9d"
+    DOCKER_REPO     = "droptica/droopler"
+  }
+
+  parameters {
+    string      (name: 'GIT_PROJECT_URL', defaultValue: 'git@github.com:droptica/droopler_project.git')
+    gitParameter(name: 'GIT_TAG',         defaultValue: 'master', branchFilter: 'origin/(.*)', type: 'PT_TAG', useRepository: params.GIT_PROJECT_URL, sortMode: 'DESCENDING_SMART')
+  }
+
+  stages {
+    stage('Pre-Build checks'){
+      steps {
+        echo "Environment variables check:"
+        sh   "env"
+      }
+    }
+
+    stage('Clone repo') {
+      steps {
+        /* Checkout wrapper based on Jenkins variables */
+        checkout scm: ([
+          $class: 'GitSCM',
+          userRemoteConfigs: [[url: "${GIT_URL}", credentialsId: "${GIT_CREDENTIALS}"]],
+          branches: [[name: "${GIT_COMMIT}"]],
+          extensions: [
+            [$class: 'SubmoduleOption', disableSubmodules: false, recursiveSubmodules: true, ]
+          ],
+          doGenerateSubmoduleConfigurations: false,
+          submoduleCfg: []
+        ])
+
+        /* Checkout project base on environment variables */
+        checkout scm: ([
+          $class: 'GitSCM',
+          userRemoteConfigs: [[url: "${GIT_PROJECT_URL}", credentialsId: "${GIT_CREDENTIALS}"]],
+          branches: [[name: "${GIT_TAG}"]],
+          extensions: [
+            [$class: 'RelativeTargetDirectory', relativeTargetDir: 'app']
+          ]
+        ])
+      }
+    }
+
+    stage('Build project') {
+      steps {
+        sh '''
+          echo "Build project"
+
+          cp ./build/.env.dev ./build/.env
+          sed -i "s|SETUID=1000|SETUID=7000|" ./build/.env
+          ./exec.sh pull -q
+          ./exec.sh up -d
+          ./exec.sh run composer install -vvv
+        '''
+      }
+    }
+
+    stage('Build image') {
+      steps {
+        echo "Build docker image"
+
+        sh '''
+          # Remove settings used for build process
+          rm -f "${WORKSPACE}/app/web/sites/default/settings.php"
+        '''
+
+        script {
+          pipelineContext.dockerImage = docker.build("${env.DOCKER_REPO}:${env.BUILD_ID}", "--no-cache -f ./build/jenkins/build-droopler-base/Dockerfile .")
+        }
+      }
+    }
+
+    stage('Build package') {
+      steps {
+        echo "Build package for drupal.org"
+
+        sh '''
+          echo "TBD"
+        '''
+      }
+    }
+
+    stage('Push image') {
+      steps {
+        echo "Push image to docker hub"
+
+        script {
+          docker.withRegistry('https://registry.hub.docker.com', 'hub.docker.com') {
+            pipelineContext.dockerImage.push('latest')
+          }
+        }
+      }
+    }
+  }
+
+  post {
+    success {
+      echo 'Build was finished successfully'
+      //slackSend channel: '#monitoring', color: '#43e06a', iconEmoji: '', message: "${JOB_NAME} - #${BUILD_NUMBER} (<${BUILD_URL}|View Job>) \n\n Automatic update deployed: ", tokenCredentialId: 'slack-key', username: ''
+    }
+
+    aborted {
+      echo 'Build was aborted'
+    }
+
+    failure {
+      echo 'Build was finished with failure'
+      //slackSend channel: '#monitoring', color: '#e04343', iconEmoji: '', message: "${JOB_NAME} - #${BUILD_NUMBER} (<${BUILD_URL}|View Job>) \n\n Automatic update failed: ", tokenCredentialId: 'slack-key', username: ''
+    }
+
+    cleanup {
+      echo 'Cleaning environment'
+
+      dir("${WORKSPACE}/build") {
+        sh '''
+          pwd
+          ls -la
+          docker-compose -f docker-compose.dev.yml down -v --remove-orphans
+        '''
+      }
+
+      /* Clean workspace after build */
+      deleteDir()
+    }
+  }
+}

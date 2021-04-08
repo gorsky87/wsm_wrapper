@@ -1,0 +1,31 @@
+---
+
+  - name: Create files directory
+    file:
+      path:   "{{ app_path }}/sites/{{ item }}/files"
+      state:  "directory"
+      mode:   "u=rwx,g=rx,o=rx"
+    loop:     "{{ supported_sites }}"
+
+  - name: Extract files.tar.gz
+    unarchive:
+      src:  "/app/build/files/sites/{{ item }}/files.tar.gz"
+      dest: "{{ app_path }}/sites/{{ item }}"
+    loop:   "{{ supported_sites }}"
+    ignore_errors: yes
+
+  # Create space for private space
+
+  - name: Create files_private directory
+    file:
+      path:   "{{ app_path }}/sites/{{ item }}/files_private"
+      state:  "directory"
+      mode:   "u=rwx,g=rx,o=rx"
+    loop:     "{{ supported_sites }}"
+
+  - name: Extract files_private.tar.gz
+    unarchive:
+      src:  "/app/build/files/sites/{{ item }}/files_private.tar.gz"
+      dest: "{{ app_path }}/sites/{{ item }}"
+    loop:   "{{ supported_sites }}"
+    ignore_errors: yes

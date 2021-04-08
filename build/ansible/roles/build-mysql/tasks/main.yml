@@ -1,0 +1,23 @@
+# This module imports SQL dumps from site directory
+# for each supported site, extract dump from *.tar.gz 
+#
+# This module can be ENV_AWARE (set in build.yml). If
+# set to "yes" will copy files from build/files/$ENV
+# only.
+
+#
+# Import specific configurations depends on D_ENV variable
+#
+
+- debug:
+    msg: "Execute module: build-mysql"
+
+- include_tasks: with-env.yml
+  when: ENV_AWARE == "yes"
+
+- include_tasks: without-env.yml
+  when: ENV_AWARE == "no"
+  loop:   "{{ supported_sites }}"
+  loop_control:
+    loop_var: site_name
+

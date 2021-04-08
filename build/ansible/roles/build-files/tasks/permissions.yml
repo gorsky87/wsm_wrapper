@@ -1,0 +1,13 @@
+---
+
+- name: Set permissions on sites directory in loop
+  file:
+    path:    "{{ app_path }}/sites/{{ item }}"
+    recurse: "yes"
+    mode:    "u=rwX,g=rwX,o=rwX"
+  loop: "{{ supported_sites }}"
+  when: D_ENV == "dev"
+
+- name: Set owner on all sources ( /app )
+  shell: chown -R {{ UID }}:{{ UID }} /app
+  when: D_ENV == "dev" and UID is defined

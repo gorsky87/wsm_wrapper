@@ -1,0 +1,6 @@
+---
+
+- name:  composer --no-interaction -vvv {{ cmd }}
+  shell: composer --no-interaction -vvv {{ cmd }}
+  args:
+    chdir: "{{ composer_path }}"

@@ -1,0 +1,78 @@
+---
+
+# It's needed to convert site name while MySQL doesn't allow
+# all special characters in DB names
+- name: "Convert site name to DB name"
+  set_fact:
+    DB_NAME_TMP: "{{ site_name | lower | regex_replace('\\.') | truncate(18, True, '') }}"
+
+- debug:
+    var: DB_NAME_TMP
+
+- name: "Drop DB [ site: {{ site_name }}, db: {{ DB_NAME_TMP }} ]"
+  mysql_db:
+    state:          "absent"
+    name:           "{{ DB_NAME_TMP }}"
+    login_host:     "{{ DB_HOST }}"
+    login_user:     "root"
+    login_password: "{{ DB_PASS }}"
+
+- name: "Create DB [ site: {{ site_name }}, db: {{ DB_NAME_TMP }} ]"
+  mysql_db:
+    state:          "present"
+    name:           "{{ DB_NAME_TMP }}"
+    login_host:     "{{ DB_HOST }}"
+    login_user:     "root"
+    login_password: "{{ DB_PASS }}"
+
+- name: "Grant permittions for {{ DB_USER }} to DB: {{ DB_NAME_TMP }}"
+  mysql_user:
+    name:     "{{ DB_USER }}"
+    password: "{{ DB_PASS }}"
+    priv:     "*.*:ALL,GRANT"
+    state:    "present"
+
+- name: "Create temporary dump directory"
+  when: DB_IMPORT != "no"
+  file:
+    path:  "/tmp/db"
+    state: directory
+
+- name: "Extract database.sql.tar.gz into /tmp/db (ENV_AWARE = no)"
+  when: DB_IMPORT != "no"
+  unarchive:
+    src:  "/app/build/files/{{ D_ENV }}/sites/{{ site_name }}/database.sql.tar.gz"
+    dest: "/tmp/db"
+
+# Recursive find for SQL files. We do recursive to avoid
+# unsuccessful builds when SQLs are in subdirectory.
+- name: "Find extraced SQL files"
+  when: DB_IMPORT != "no"
+  find:
+    paths:    "/tmp/db"
+    recurse:  yes
+    patterns: "*.sql"
+  register: sql_files
+
+- debug:
+    var: sql_files
+  when: DB_IMPORT != "no"
+
+# Load found SQL files (it can be more than one dump)
+- name: "Restore DB [ site: {{ site_name }}, db: {{ DB_NAME_TMP }} ]"
+  when: DB_IMPORT != "no"
+  mysql_db:
+    state: import
+    name:           "{{ DB_NAME_TMP }}"
+    login_host:     "{{ DB_HOST }}"
+    login_user:     "root"
+    login_password: "{{ DB_PASS }}"
+    target:         "{{ item.path }}"
+  with_items:
+    - "{{ sql_files.files }}"
+
+- name: "Remove temporary dump directory"
+  when: DB_IMPORT != "no"
+  file:
+    path:  "/tmp/db"
+    state: absent

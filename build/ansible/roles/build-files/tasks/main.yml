@@ -1,0 +1,28 @@
+---
+# This module create files directory for each 
+# supported site, extract files from *.tar.gz 
+# and copies all files available in build/files 
+# directory.
+#
+# This module can be ENV_AWARE (set in build.yml). If
+# set to "yes" will copy files from build/files/$ENV
+# only.
+
+- include_tasks: common.yml
+  when: NON_DRUPAL_SITE is not defined or NON_DRUPAL_SITE != "yes"
+
+#
+# Import specific configurations depends on D_ENV variable
+#
+
+- include_tasks: with-env.yml
+  when: ENV_AWARE == "yes"
+
+- include_tasks: without-env.yml
+  when: ENV_AWARE == "no"
+
+#
+# After importing all files and created directories
+# set valid permissions depends on environment
+#
+- include_tasks: permissions.yml

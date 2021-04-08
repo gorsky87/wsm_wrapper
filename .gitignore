@@ -1,0 +1,21 @@
+# Ignore .env to avoid credentials sharing
+build/.env
+
+# Ignore app
+app/
+
+
+# Ignore PHPstorm config
+.idea
+
+/tests/tests/_output/
+!tests/_output/README.txt
+/tests/tests/_support/_generated/*
+/tests/_data/dump.sql
+/tests/tests/reports/*
+/tests/tests/reports/
+/tests/tests/reports_visual/*
+/tests/tests/reports_visual/
+/tests/tests/_data/VisualCeption/
+/droopler.zip
+/droopler.tar.gz

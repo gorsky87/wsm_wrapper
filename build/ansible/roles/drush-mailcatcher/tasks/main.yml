@@ -1,0 +1,7 @@
+---
+- include_tasks: d7.yml
+  when: D_VERSION == "7"
+
+- include_tasks: d8.yml
+  when: D_VERSION == "8"
+

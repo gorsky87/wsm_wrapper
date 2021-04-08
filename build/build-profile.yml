@@ -1,0 +1,109 @@
+- name: run the playbook tasks on the localhost
+  hosts:       127.0.0.1
+  connection:  local
+  vars:
+    - app_path: /app/app/web
+    - composer_path: /app/app
+    - supported_sites:
+        - default
+
+  pre_tasks:
+    - name: Load environment variables (.env file)
+      tags: always
+      set_fact:
+        DB_HOST:   '{{ lookup("env", "DB_HOST") }}'
+        DB_USER:   '{{ lookup("env", "DB_USER") }}'
+        DB_PASS:   '{{ lookup("env", "DB_PASS") }}'
+        DB_NAME:   '{{ lookup("env", "DB_NAME") }}'
+        D_ENV:     '{{ lookup("env", "D_ENV") }}'
+        D_HOST:    '{{ lookup("env", "D_HOST") }}'
+        D_VERSION: '{{ lookup("env", "D_VERSION") }}'
+        D_LOCALE: '{{ lookup("env", "D_LOCALE") }}'
+
+  # In this section build modules are loaded. Feel
+  # free to comment not required.
+
+  tasks:
+    - import_role:
+        name: build-init
+      tags: init
+
+# dkossako: This instruction should be probably below, at this time web/sites does not exists
+#    - name: Ensure directories are 0755 and files are 0644
+#      file:
+#        path:    "{{ composer_path }}/web/sites"
+#        recurse: "yes"
+#        mode:    "u=rwX,g=rX,o=rX"
+#      tags: composer
+
+    - import_role:
+        name: build-composer
+      tags: composer
+      vars:
+        extra_cmds:
+          - "d:s"
+
+    - import_role:
+        name: build-patches
+      tags: patches
+
+    - import_role:
+        name: build-mysql
+      tags: mysql
+      vars:
+        DB_IMPORT: "no"
+        ENV_AWARE: "no"
+      when: D_ENV != "prod"
+
+    - import_role:
+        name: build-drush
+      vars:
+        cmds:
+          - site-install droopler install_configure_form.enable_update_status_module=TRUE install_configure_form.enable_update_status_emails=NULL --db-url='mysql://{{ DB_USER }}:{{ DB_PASS }}@{{ DB_HOST }}/{{ DB_NAME }}' --account-name=admin --account-pass=123 --site-name=droopler -y --locale={{ D_LOCALE }} droopler_additional_modules_form.module_d_blog=1 droopler_additional_modules_form.module_d_product=1 droopler_additional_modules_form.init_content=1 droopler_additional_modules_form.documentation=1
+          # - sql-query "UPDATE users_field_data SET name='admin', mail='admin@example.com' WHERE uid=1"
+      tags: drush
+
+    - import_role:
+        name: build-files
+        tasks_from: permissions
+      tags: files
+
+    - import_role:
+        name: drush-mailcatcher
+      tags: mailcatcher
+      when: D_ENV != "prod"
+
+    - import_role:
+        name: build-drush
+      vars:
+        cmds:
+          - cr
+      tags: drush
+
+    - import_role:
+        name: build-output
+      tags: output
+
+    - name: Check Droopler git directory.
+      stat:
+        path: "{{ app_path }}/profiles/contrib/droopler/.git/hooks"
+      register: droopler_git_dir
+      tags: git
+
+    - name: Copy GIT hooks files
+      copy:
+        src: "{{ item }}"
+        dest: "{{ app_path }}/profiles/contrib/droopler/.git/hooks"
+      with_fileglob:
+        - "/app/build/.githooks/*"
+      tags: git
+      when:
+        - D_ENV == "dev"
+        - droopler_git_dir.stat.exists
+
+    - name: Set permissions git hooks
+      command: find "{{ app_path }}/profiles/contrib/droopler/.git/hooks/" -type f -exec chmod +x {} \;
+      tags: git
+      when:
+        - D_ENV == "dev"
+        - droopler_git_dir.stat.exists

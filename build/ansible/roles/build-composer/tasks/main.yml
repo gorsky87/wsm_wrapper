@@ -1,0 +1,16 @@
+---
+
+- name:  composer clear-cache --no-interaction -vvv -d {{ composer_path }}
+  shell: composer clear-cache --no-interaction -vvv -d {{ composer_path }}
+
+- name:  composer install --no-interaction -vvv -d {{ composer_path }}
+  shell: composer install --no-interaction -vvv -d {{ composer_path }}
+
+- debug:
+    var: extra_cmds
+
+- include_tasks: "run-single-cmd.yml"
+  loop:          "{{ extra_cmds }}"
+  loop_control:
+    loop_var: cmd
+  when: extra_cmds is defined

@@ -1,0 +1,6 @@
+---
+
+- name:  php {{ cmd.cmd }}
+  shell: php {{ cmd.cmd }}
+  args:
+    chdir: "/app/{{ cmd.dir }}"

@@ -1,0 +1,63 @@
+actor: CompareTester
+modules:
+    enabled:
+        - \Helper\Compare
+        - \Helper\DrupalHelper
+        - \Helper\PageLoad
+        - WebDriver:
+             host: selenium
+             url: http://apache
+             browser: chrome
+             curl:
+                 CURLOPT_TIMEOUT: 1200
+        - VisualCeption:
+            maximumDeviation: 0                                 
+            saveCurrentImageIfFailure: true  
+            report: true
+            templateFile: "/app/tests/tests/test_template/custom_template.php"
+        - \Codeception\Module\Drupal8\Drupal8:
+            root: '/app/app/web/'
+            site_dir: 'default'
+            env: 'prod'
+            relative: no
+        - DrupalDrush:
+            working_directory: '/app/app'
+            drush: '/root/drush-8/vendor/bin/drush'
+            options:
+              uri: http://apache
+              root: /app/app/web
+
+env:
+    mobile:
+         modules:
+            config:
+                WebDriver:
+                    capabilities:
+                       "goog:chromeOptions":
+                            'w3c': false
+                            mobileEmulation:
+                                 deviceMetrics:
+                                     width: 320
+                                     height: 15000
+    tablet:
+         modules:
+            config:
+                WebDriver:
+                    capabilities:
+                       "goog:chromeOptions":
+                            'w3c': false
+                            mobileEmulation:
+                                 deviceMetrics:
+                                     width: 800
+                                     height: 12000
+    desktop:
+         modules:
+            config:
+                WebDriver:
+                    capabilities:
+                       "goog:chromeOptions":
+                            'w3c': false
+                            mobileEmulation:
+                                 deviceMetrics:
+                                     width: 1920
+                                     height: 12000

@@ -1,0 +1,34 @@
+---
+# This module copy settings from build/files/sites
+# directory depends on selected environment.
+
+- name: Create sites directory
+  file:
+    path:   "{{ app_path }}/sites"
+    state:  "directory"
+    mode:   "u=rwx,g=rx,o=rx"
+
+- name: Copy sites.php
+  copy:
+    src:  "/app/build/files/sites/sites.php"
+    dest: "{{ app_path }}/sites/sites.php"
+    mode: "u=rwx,g=rx,o=rx"
+
+
+- name: Create sites subdirectories
+  file:
+    path:   "{{ app_path }}/sites/{{ item }}"
+    state:  "directory"
+    mode:   "u=rwx,g=rx,o=rx"
+  register: "result"
+  loop:     "{{ supported_sites }}"
+
+#
+# Import specific configurations depends on D_ENV variable
+#
+
+- include_tasks: static.yml
+  when: D_ENV is not defined
+
+- include_tasks: environmental.yml
+  when: D_ENV is defined

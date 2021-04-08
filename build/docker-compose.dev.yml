@@ -1,0 +1,133 @@
+version: '3.6'
+
+volumes:
+  mysql:
+
+services:
+  php-dev:
+    image: droptica/php-cli:${D_PHP_VERSION}
+    depends_on:
+      - mysql
+    working_dir: /app/app
+    env_file:
+      - .env
+    volumes:
+      - ..:/app
+      - ./ansible:/etc/ansible
+    environment:
+      - COMPOSER_PATH=/app/app
+      - PHP_MEMORY_LIMIT=-1
+      - DRUSH_OPTIONS_URI=http://${D_HOST}
+
+#  blackfire:
+#    env_file: ./.env
+#    image: blackfire/blackfire
+#    restart: ${D_RESTART}
+#    environment:
+#      BLACKFIRE_SERVER_ID: caa9d303-b58a-4929-ae15-81e4b4e1c2a3
+#      BLACKFIRE_SERVER_TOKEN: 6389dffd8ee40f5f5f19b06a741154e15d134ed7fb704ca9dc2c2df387720813
+
+  apache:
+    image: droptica/php-apache:${D_PHP_VERSION}
+    restart: ${D_RESTART}
+    depends_on:
+  #    - blackfire
+      - mysql
+    volumes:
+      - ../app:/var/www
+    labels:
+      - "traefik.frontend.rule=Host:${D_HOST}${D_HOST_ADDITIONAL}"
+      - "traefik.docker.network=traefik"
+    working_dir: /var/www/web
+    environment:
+      - DOCUMENT_ROOT=/var/www/web
+    env_file:
+      - .env
+    networks:
+      - traefik
+      - default
+
+  gulp:
+    image: droptica/gulp:${D_NODE_VERSION}
+    env_file:
+      - .env
+    volumes:
+      - ../app:/var/www
+    working_dir: /app
+
+  mysql:
+    image: mysql:5.6
+    restart: ${D_RESTART}
+    volumes:
+      - mysql:/var/lib/mysql
+      - ./configs/mysql/dev-my.cnf:/etc/mysql/conf.d/custom.cnf:ro
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASS}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER:     ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASS}
+
+  pma:
+    image: nazarpc/phpmyadmin
+    restart: ${D_RESTART}
+    depends_on:
+      - mysql
+    labels:
+      - "traefik.frontend.rule=Host:pma.${D_HOST}"
+      - "traefik.docker.network=traefik"
+    networks:
+      - traefik
+      - default
+
+  mailcatcher:
+    image: droptica/mailcatcher
+    restart: ${D_RESTART}
+    labels:
+      - "traefik.frontend.rule=Host:mails.${D_HOST}"
+      - "traefik.docker.network=traefik"
+    networks:
+      - traefik
+      - default
+
+
+#  httrack:
+#    build: ./docker/httrack
+#    env_file:
+#      - .env
+#    labels:
+#      - "traefik.frontend.rule=Host:httrack.${D_HOST}"
+#      - "traefik.port=8080"
+#    links:
+#      - apache:${D_HOST}
+#    depends_on:
+#      - apache
+#      - mysql
+#    command: httrack  ${D_HOST} --disable-security-limits --max-rate=99999999999 -K3 -X -%P -wqQ%v --robots=0 -N "%h%p/%n.%t"
+#    working_dir: /app
+#    volumes:
+#      - ../httrack:/app
+#    networks:
+#      - traefik
+#      - default
+#
+#  httrack-apache:
+#    image: droptica/php-apache:${D_PHP_VERSION}
+#    volumes:
+#      - ../httrack/${D_HOST}:/var/www/html
+#    labels:
+#      - "traefik.frontend.rule=Host:httrack.${D_HOST}"
+#      - "traefik.docker.network=traefik"
+#    working_dir: /var/www/html
+#    environment:
+#      - DOCUMENT_ROOT=/var/www/html
+#    env_file:
+#      - .env
+#    networks:
+#      - traefik
+#      - default
+
+networks:
+  default:
+  traefik:
+    external:
+      name: traefik

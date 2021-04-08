@@ -1,0 +1,9 @@
+---
+
+# Copy all files from build/files (ignore env directories)
+  - name: Copy files from build/files (ENV_AWARE = yes)
+    synchronize:
+     src:  "/app/build/files/{{ D_ENV }}/"
+     dest: "{{ app_path }}"
+     rsync_opts:
+       - "--exclude=*.tar.gz"

@@ -1,0 +1,3 @@
+[submodule "ansible"]
+	path = build/ansible
+	url = git@bitbucket.org:droptica/scm-build-system.git

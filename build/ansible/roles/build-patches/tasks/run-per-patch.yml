@@ -1,0 +1,7 @@
+---
+
+  - name:  "Apply patch: {{ patch.path }}"
+    shell: "patch -p1 --forward < {{ patch.path }}"
+    args:
+      chdir: "{{ app_path }}"
+    ignore_errors: yes

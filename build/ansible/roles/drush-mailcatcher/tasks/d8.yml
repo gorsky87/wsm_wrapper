@@ -1,0 +1,57 @@
+---
+
+- name: drush -y en smtp
+  shell: drush -y en smtp
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush config-set -y smtp.settings smtp_on true
+  shell: drush -l {{ item }} config-set -y smtp.settings smtp_on true
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush config-set -y smtp.settings smtp_host mailcatcher
+  shell: drush -l {{ item }} config-set -y smtp.settings smtp_host mailcatcher
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush config-set -y smtp.settings 'smtp_protocol' 'standard'
+  shell: drush -l {{ item }} config-set -y smtp.settings 'smtp_protocol' 'standard'
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush config-set -y smtp.settings 'smtp_port' 1025
+  shell: drush -l {{ item }} config-set -y smtp.settings 'smtp_port' 1025
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: drush config-delete -y smtp.settings 'smtp_username'
+  shell: drush -l {{ item }} config-delete -y smtp.settings 'smtp_username'
+  args:
+    chdir: "{{ app_path }}"
+  ignore_errors: yes
+  loop: "{{ supported_sites }}"
+
+- name: drush config-delete -y smtp.settings 'smtp_password'
+  shell: drush -l {{ item }} config-delete -y smtp.settings 'smtp_password'
+  args:
+    chdir: "{{ app_path }}"
+  ignore_errors: yes
+  loop: "{{ supported_sites }}"
+
+- name: config-set -y smtp.settings 'smtp_allowhtml' true
+  shell: drush -l {{ item }} config-set -y smtp.settings 'smtp_allowhtml' true
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"
+
+- name: config-set -y system.mail interface.default 'SMTPMailSystem'
+  shell: drush -l {{ item }} config-set -y system.mail interface.default 'SMTPMailSystem'
+  args:
+    chdir: "{{ app_path }}"
+  loop: "{{ supported_sites }}"

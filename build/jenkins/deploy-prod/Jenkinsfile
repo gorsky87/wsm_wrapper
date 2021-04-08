@@ -1,0 +1,167 @@
+/*
+ * This is common deploy script for production based environment.
+ * It's calling ansible to deploy.
+ */
+
+// This variable contains cleaned GIT_TAG from special characters
+def DOCKER_TAG = ""
+
+pipeline {
+
+  agent any
+
+  options {
+    ansiColor('xterm')
+    timestamps()
+  }
+
+  environment {
+    GIT_CREDENTIALS = "c279944a-fc9e-467b-8361-f5c95d9f3c9d"
+  }
+
+  parameters {
+    string      (name: 'GIT_PROJECT_URL', defaultValue: params.GIT_PROJECT_URL ?: '', description: 'Direct link to git repository, preferably using SSH protocol')
+    gitParameter(name: 'GIT_TAG',         defaultValue: 'master', branchFilter: 'origin/(.*)', type: 'PT_BRANCH_TAG', useRepository: params.GIT_PROJECT_URL, sortMode: 'DESCENDING_SMART')
+    string      (name: 'DOCKER_REPO',     defaultValue: params.DOCKER_REPO ?: '', description: 'URL of the docker registry where image will be uploaded')
+    string      (name: 'DOCKER_CREDS',    defaultValue: params.DOCKER_CREDS ?: '', description: 'ID of credentials to docker registry stored in Jenkins')
+
+    string      (name: 'target',          defaultValue: params.target ?: '', description: '')
+    string      (name: 'site_name',       defaultValue: params.site_name ?: '', description: '')
+  }
+
+  stages {
+    stage('Pre-Build checks'){
+      steps {
+        echo "Environment variables check:"
+        script {
+          DOCKER_TAG = params.GIT_TAG.replace("/", "-")
+
+          sh   '''
+            env
+
+            if [ -z "${GIT_PROJECT_URL}" ]; then
+              echo "GIT_PROJECT_URL parameter is not set. Aborting."
+              exit 1
+            fi
+
+            if [ -z "${GIT_TAG}" ]; then
+              echo "GIT_TAG parameter is not set. Aborting."
+              exit 1
+            fi
+
+            if [ -z "${DOCKER_REPO}" ]; then
+              echo "DOCKER_REPO parameter is not set. Aborting."
+              exit 1
+            fi
+
+            if [ -z "${DOCKER_CREDS}" ]; then
+              echo "DOCKER_CREDS parameter is not set. Aborting."
+              exit 1
+            fi
+          '''
+        }
+      }
+    }
+
+    stage('Clone scm-ansible') {
+      steps {
+        /* Checkout scm-tools repo to update deployment scripts base on ansible */
+        checkout([
+          $class: 'GitSCM',
+          branches: [[name: 'master']],
+          doGenerateSubmoduleConfigurations: false,
+          extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'scm-ansible']],
+          submoduleCfg: [],
+          userRemoteConfigs: [[
+            url: 'git@bitbucket.org:droptica/scm-ansible.git',
+            credentialsId: "${env.GIT_CREDENTIALS}"
+          ]]
+        ])
+
+        /* Checkout wrapper to update scripts and pipeline */
+        checkout([
+          $class: 'GitSCM',
+          branches: [[name: "${GIT_COMMIT}"]],
+          doGenerateSubmoduleConfigurations: false,
+          extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'app-wrapper']],
+          submoduleCfg: [],
+          userRemoteConfigs: [[
+            url: "${env.GIT_URL}",
+            credentialsId: "${env.GIT_CREDENTIALS}"
+          ]]
+        ])
+
+        /* Checkout application seources to get list of branches and tags */
+        checkout([
+          $class: 'GitSCM',
+          branches: [[name: "${params.GIT_TAG}"]],
+          doGenerateSubmoduleConfigurations: false,
+          extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'app-source']],
+          submoduleCfg: [],
+          userRemoteConfigs: [[
+            url: "${params.GIT_PROJECT_URL}",
+            credentialsId: "${env.GIT_CREDENTIALS}"
+          ]]
+        ])
+      }
+    }
+
+    stage('Deploy') {
+      steps {
+        script {
+            sh 'env'
+
+            withEnv([
+              "target_env=prod",
+              "target_server=${target}",            // Checkout source to specified host
+              "repo_url=${GIT_URL}",                // Pass repository URL to ansible deployment script
+              "target_version=${GIT_BRANCH}",       // Checkout source to specified branch, tag or SHA
+              "site_name=${site_name}",             // Site will be deployed to this directory (under /opt/sites/{{ target_server }})
+              "app_repo=${params.GIT_PROJECT_URL}",
+              "app_version=${params.GIT_TAG}",      // on droopler build there is enabled another type of build
+              "skip_build=1",                       // Disable or enable running of ansible build while deploy
+              //
+              "perform_build_profile=0",
+              "skip_create_files_dir=0",            // Disable or enable creation of /opt/files and /opt/backups directories
+              "run_exec_dist=0",                    // Run exec bash file with prepare operation
+              "bld_image_tag=${params.DOCKER_REPO}:${DOCKER_TAG}",
+
+              "ANSIBLE_HOST_KEY_CHECKING=False",
+              "ANSIBLE_STDOUT_CALLBACK=unixy",
+            ]) {
+              sh 'ansible-playbook --key-file /var/jenkins_home/.ssh/id_rsa ./scm-ansible/deploy-new.yml -i "${target_server}:59184,"'
+            }
+        }
+      }
+    }
+  }
+
+  post {
+    success {
+      echo 'Build was finished successfully'
+      //slackSend channel: '#monitoring', color: '#43e06a', iconEmoji: '', message: "${JOB_NAME} - #${BUILD_NUMBER} (<${BUILD_URL}|View Job>) \n\n Automatic update deployed: ", tokenCredentialId: 'slack-key', username: ''
+    }
+
+    aborted {
+      echo 'Build was aborted'
+    }
+
+    failure {
+      echo 'Build was finished with failure'
+      //slackSend channel: '#monitoring', color: '#e04343', iconEmoji: '', message: "${JOB_NAME} - #${BUILD_NUMBER} (<${BUILD_URL}|View Job>) \n\n Automatic update failed: ", tokenCredentialId: 'slack-key', username: ''
+    }
+
+    cleanup {
+      echo 'Cleaning environment'
+
+      dir("${WORKSPACE}/build") {
+        sh '''
+          pwd
+        '''
+      }
+
+      /* Clean workspace after build */
+      deleteDir()
+    }
+  }
+}

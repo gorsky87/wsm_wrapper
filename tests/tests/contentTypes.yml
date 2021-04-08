@@ -1,0 +1,58 @@
+ContentTypes:
+  article:
+    humanName: Article
+    machineName: article
+    fields:
+      title:
+        machineName: title
+        label: Title
+        type: 'Node module element'
+        selector: edit-title
+      body:
+        machineName: body
+        label: Body
+        type: text_with_summary
+        widget: text_textarea_with_summary
+        required: false
+        cardinality: 1
+        selector: edit-body-und
+      comment:
+        machineName: comment
+        label: Comments
+        type: comment
+        widget: comment_default
+        required: false
+        cardinality: 1
+      field_image:
+        machineName: field_image
+        label: Image
+        type: image
+        widget: image_image
+        required: false
+        cardinality: 1
+      field_tags:
+        machineName: field_tags
+        label: Tags
+        type: entity_reference
+        widget: entity_reference_autocomplete_tags
+        required: false
+        cardinality: -1
+    submit: .button.js-form-submit.form-submit.btn-success.btn.icon-before
+  page:
+    humanName: 'Basic page'
+    machineName: page
+    fields:
+      title:
+        machineName: title
+        label: Title
+        type: 'Node module element'
+        selector: edit-title
+      body:
+        machineName: body
+        label: Body
+        type: text_with_summary
+        widget: text_textarea_with_summary
+        required: false
+        cardinality: 1
+        selector: edit-body-und
+    submit: .button.js-form-submit.form-submit.btn-success.btn.icon-before

@@ -1,0 +1,9 @@
+---
+
+- name: Site URL
+  shell: echo "http://{{ D_HOST }}/"
+
+- name: Login URL
+  shell: drush --uri={{ D_HOST }} uli
+  args:
+    chdir: "{{ app_path }}"

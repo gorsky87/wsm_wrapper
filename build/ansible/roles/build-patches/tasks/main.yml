@@ -1,0 +1,15 @@
+---
+
+  # Recursive find for patches files. We do recursive to
+  # allow put patches into subdirectories
+  - name: "Find patch files"
+    find:
+      paths:    "/app/patches"
+      recurse:  yes
+      patterns: "*.patch"
+    register: patches
+
+  - include_tasks: "run-per-patch.yml"
+    loop:          "{{ patches.files | sort(attribute='path') }}"
+    loop_control:
+      loop_var: patch

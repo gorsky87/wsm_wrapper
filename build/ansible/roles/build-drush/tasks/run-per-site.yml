@@ -1,0 +1,6 @@
+---
+
+- include_tasks: "run-drush.yml"
+  loop: "{{ supported_sites }}"
+  loop_control:
+    loop_var: site

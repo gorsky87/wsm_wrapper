@@ -1,0 +1,13 @@
+---
+
+- name: Check OS version
+  shell: echo "{{ ansible_facts.distribution }} {{ ansible_facts.distribution_release }} ({{ ansible_facts.distribution_version }})"
+
+- name: Check Ansible version
+  shell: ansible --version
+
+- name: Check PHP version
+  shell: php --version
+
+- name: Print environment variables
+  shell: env | sort

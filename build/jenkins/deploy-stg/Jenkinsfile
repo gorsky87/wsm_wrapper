@@ -1,0 +1,239 @@
+/*
+ * This is common deploy script for production based environment.
+ * It's calling ansible to deploy.
+ */
+
+// This variable contains cleaned GIT_TAG from special characters
+def DOCKER_TAG = ""
+// BUILD_NAME is used as prefix in docker-compose and part of URL
+def BUILD_NAME = ""
+// Final URL where staging site can be reached
+def FINAL_URL  = ""
+
+pipeline {
+
+  agent { label params.AGENT }
+
+  options {
+    ansiColor('xterm')
+    timestamps()
+  }
+
+  environment {
+    GIT_CREDENTIALS = "c279944a-fc9e-467b-8361-f5c95d9f3c9d"
+  }
+
+  parameters {
+    string      (name: 'GIT_PROJECT_URL', defaultValue: params.GIT_PROJECT_URL ?: '', description: 'Direct link to git repository, preferably using SSH protocol')
+    gitParameter(name: 'GIT_TAG',         defaultValue: 'master', branchFilter: 'origin/(.*)', type: 'PT_BRANCH_TAG', useRepository: params.GIT_PROJECT_URL, sortMode: 'DESCENDING_SMART')
+    string      (name: 'DOCKER_REPO',     defaultValue: params.DOCKER_REPO ?: '', description: 'URL of the docker registry where image will be uploaded')
+    string      (name: 'DOCKER_CREDS',    defaultValue: params.DOCKER_CREDS ?: '', description: 'ID of credentials to docker registry stored in Jenkins')
+    string      (name: 'SITE_NAME',       defaultValue: params.SITE_NAME ?: '', description: 'Name of site which will be used in /opt/internal location')
+    string      (name: 'AGENT',           defaultValue: params.AGENT ?: '', description: 'Jenkins agent which will be used to run this pipeline')
+    text        (name: 'EXTRA_VARIABLES', defaultValue: params.EXTRA_VARIABLES ?: '', description: 'Additional variables will be passed to .env file')
+    booleanParam(name: 'NAME_AS_HOST',    defaultValue: params.NAME_AS_HOST, description: 'When yes D_HOST will be changed to SITE_NAME variable')
+  }
+
+  stages {
+    stage('Pre-Build checks'){
+      steps {
+        echo "Environment variables check:"
+        script {
+          DOCKER_TAG = params.GIT_TAG.replace("/", "-")
+
+          sh   '''
+            env
+
+            if [ -z "${GIT_PROJECT_URL}" ]; then
+              echo "GIT_PROJECT_URL parameter is not set. Aborting."
+              exit 1
+            fi
+
+            if [ -z "${GIT_TAG}" ]; then
+              echo "GIT_TAG parameter is not set. Aborting."
+              exit 1
+            fi
+
+            if [ -z "${DOCKER_REPO}" ]; then
+              echo "DOCKER_REPO parameter is not set. Aborting."
+              exit 1
+            fi
+
+            if [ -z "${DOCKER_CREDS}" ]; then
+              echo "DOCKER_CREDS parameter is not set. Aborting."
+              exit 1
+            fi
+
+            if [ -z "${SITE_NAME}" ]; then
+              echo "SITE_NAME parameter is not set. Aborting."
+              exit 1
+            fi
+
+            cd "${WORKSPACE}/build"
+            if [ -f "${WORKSPACE}/build/.env" ]; then
+              docker-compose -f docker-compose.stg.yml down -v
+            fi
+          '''
+        }
+
+        /* Clean environment before start */
+        deleteDir()
+      }
+    }
+
+    stage('Clone repos') {
+      steps {
+        /* Checkout wrapper to update scripts and pipeline */
+        checkout([
+          $class: 'GitSCM',
+          branches: [[name: "${GIT_COMMIT}"]],
+          doGenerateSubmoduleConfigurations: false,
+          submoduleCfg: [],
+          userRemoteConfigs: [[
+            url: "${env.GIT_URL}",
+            credentialsId: "${env.GIT_CREDENTIALS}"
+          ]],
+          extensions: [
+            [$class: 'SubmoduleOption', disableSubmodules: false, recursiveSubmodules: true]
+          ],
+        ])
+
+        /* Checkout application seources to get list of branches and tags */
+        checkout([
+          $class: 'GitSCM',
+          branches: [[name: "${params.GIT_TAG}"]],
+          doGenerateSubmoduleConfigurations: false,
+          extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'app']],
+          submoduleCfg: [],
+          userRemoteConfigs: [[
+            url: "${params.GIT_PROJECT_URL}",
+            credentialsId: "${env.GIT_CREDENTIALS}"
+          ]]
+        ])
+      }
+    }
+
+    stage('Setup environment'){
+      steps {
+        script {
+
+          /* 
+           * Calculate build name in format pppp-hhhh-n, which will be used as identifier and domain name
+           * where pppp - first 4 characters of site name, hhhh - md5sum of site name (to avoid conflicts)
+           * and n - letter of build name to allow to build more jobs
+           */
+          BUILD_NAME = sh(returnStdout: true, script: '''
+            echo $(echo ${SITE_NAME} | cut -c 1-4)-$(echo ${SITE_NAME} | md5sum | cut -c 1-4)-$(echo ${JOB_BASE_NAME} | awk '{print tolower($0)}')
+          ''').trim()
+
+          /* Set URL of instance as global variable */
+          FINAL_URL = "${BUILD_NAME}.${AGENT}"
+
+          withEnv(["DOCKER_TAG=${DOCKER_TAG}", "FINAL_URL=${FINAL_URL}", "BUILD_NAME=${BUILD_NAME}"]){
+            echo 'Setup environment variables...'
+
+            sh '''
+              # Copy files
+              cp "${WORKSPACE}/build/.env.dev" "${WORKSPACE}/build/.env"
+
+              # Set image version in current used .env file
+              echo "IMAGE_TAG=${DOCKER_REPO}:${DOCKER_TAG}" >> "${WORKSPACE}/build/.env"
+              echo "COMPOSE_PROJECT_NAME=${BUILD_NAME}"     >> "${WORKSPACE}/build/.env"
+              echo "SETUID=7000"                            >> "${WORKSPACE}/build/.env"
+              if [ "${NAME_AS_HOST}" = "true" ]; then
+                echo "D_HOST=${SITE_NAME}"                  >> "${WORKSPACE}/build/.env"
+                echo "D_HOST_ADDITIONAL=,www.${SITE_NAME}"  >> "${WORKSPACE}/build/.env"
+              else
+                echo "D_HOST=${FINAL_URL}"                  >> "${WORKSPACE}/build/.env"
+                echo "D_HOST_ADDITIONAL=,www.${FINAL_URL}"  >> "${WORKSPACE}/build/.env"
+              fi
+
+              # Pass EXTRA_VARIABLES to .env file
+              echo ""                                    >> "${WORKSPACE}/build/.env"
+              echo "# Pass EXTRA_VARIABLES to .env file" >> "${WORKSPACE}/build/.env"
+              echo "${EXTRA_VARIABLES}"                  >> "${WORKSPACE}/build/.env"
+
+              # Disable drush and extra scripts running during container startup
+              echo "RUN_ADDITIONAL_SCRIPTS=0"            >> "${WORKSPACE}/build/.env"
+            '''
+          }
+        }
+      }
+    }
+
+    stage('Run containers'){
+      steps {
+        echo 'Run containers...'
+
+        sh '''
+          cd "${WORKSPACE}/build"
+          docker-compose -f docker-compose.stg.yml up -d --force-recreate
+
+          # Workaround for permissions issue in container during startup
+          sudo chown -R dropadmin:dropadmin "${WORKSPACE}/app"
+
+          # Wait before DB wake up
+          sleep 10
+        '''
+      }
+    }
+
+    stage('Import assets'){
+      steps {
+        echo 'Import assets...'
+
+        sh '''
+          cp "/opt/internal/${SITE_NAME}/files/private.tar.gz"   "${WORKSPACE}/build/files/sites/default/files_private.tar.gz"
+          cp "/opt/internal/${SITE_NAME}/files/files.tar.gz"     "${WORKSPACE}/build/files/sites/default/files.tar.gz"
+          cp "/opt/internal/${SITE_NAME}/db/database.sql.tar.gz" "${WORKSPACE}/build/files/sites/default/database.sql.tar.gz"
+
+          cd "${WORKSPACE}/build"
+          docker-compose -f docker-compose.stg.yml run php-dev ansible-playbook /app/build/build.yml --tags files,mysql
+        '''
+      }
+    }
+
+    stage('Run drush'){
+      steps {
+        echo 'Run drush...'
+
+        sh '''
+          cd "${WORKSPACE}/build"
+          sleep 10
+          docker-compose -f docker-compose.stg.yml exec -T apache whoami
+          docker-compose -f docker-compose.stg.yml exec -T apache vendor/bin/drush -y updb
+          docker-compose -f docker-compose.stg.yml exec -T apache vendor/bin/drush -y cr
+          docker-compose -f docker-compose.stg.yml exec -T apache vendor/bin/drush -y uli
+        '''
+      }
+    }
+  }
+
+  post {
+    success {
+      echo 'Build was finished successfully'
+      echo "Site URL: http://${FINAL_URL}/"
+      //slackSend channel: '#monitoring', color: '#43e06a', iconEmoji: '', message: "${JOB_NAME} - #${BUILD_NUMBER} (<${BUILD_URL}|View Job>) \n\n Automatic update deployed: ", tokenCredentialId: 'slack-key', username: ''
+    }
+
+    aborted {
+      echo 'Build was aborted'
+    }
+
+    failure {
+      echo 'Build was finished with failure'
+      //slackSend channel: '#monitoring', color: '#e04343', iconEmoji: '', message: "${JOB_NAME} - #${BUILD_NUMBER} (<${BUILD_URL}|View Job>) \n\n Automatic update failed: ", tokenCredentialId: 'slack-key', username: ''
+    }
+
+    cleanup {
+      echo 'Cleaning environment'
+
+      dir("${WORKSPACE}/build") {
+        sh '''
+          # Workaround for permissions issue in container during files extraction and container startup
+          sudo chown -R dropadmin:dropadmin "${WORKSPACE}/app"
+        '''
+      }
+    }
+  }
+}

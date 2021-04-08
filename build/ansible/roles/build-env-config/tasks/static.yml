@@ -1,0 +1,12 @@
+# This configuration is loaded when ENV variable is not set. It
+# simply copies settings.php file for each configured site. If
+# settings.php is absent - error will be raised.
+#
+---
+
+- name: Copy Drupal settings to {{ app_path }}/sites/{{ item }} (static)
+  copy:
+    src:  "/app/build/files/sites/{{ item }}/settings.php"
+    dest: "{{ app_path }}/sites/{{ item }}"
+    mode: "u=rw,g=r,o=r"
+  loop: "{{ supported_sites }}"

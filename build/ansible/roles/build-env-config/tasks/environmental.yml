@@ -1,0 +1,12 @@
+# This configuration is loaded when ENV variable is set. It
+# copies settings.php related to specified ENV. If file named
+# settings.${ENV}.php does not exists - error will be raised.
+#
+---
+
+- name: Copy Drupal settings to {{ app_path }}/sites/{{ item }} (environmental)
+  copy:
+    src:  "/app/build/files/sites/{{ item }}/settings.{{ D_ENV }}.php"
+    dest: "{{ app_path }}/sites/{{ item }}/settings.php"
+    mode: "u=rw,g=r,o=r"
+  loop: "{{ supported_sites }}"

@@ -1,0 +1,34 @@
+#!/bin/sh
+
+# read more: https://www.droptica.pl/blog/zostan-programista-open-source-w-spolecznosci-drupala/
+
+COMMIT_MSG=$(cat $1)
+BRANCH=$(git symbolic-ref --short HEAD)
+
+BRANCH_PATTERN="^ISSUE-[0-9]+.*"
+COMMIT_MSG_PATTERN="(^Issue #[0-9]+ by [^:]+:.+)|(^Merge branch '.+)"
+
+COMMIT_MSG_EXAMPLE="Issue #123456 by droptica, drop: Drupal 9 readiness"
+
+INFO_SKIP_HOOK_MSG="to skip commit hook add \e[34m--no-verify\e[0m"
+
+INFO_MSG="Remember to honor the original author if you are applying patch! \nex. --author=\"nick <nick@1234567.no-reply.drupal.org>\""
+INFO_MSG2="See detail and/or copy commit command at the bottom of the issue page, \nex. https://www.drupal.org/project/autotitle/issues/3129236"
+
+echo "\e[34mInfo:\e[0m ${INFO_MSG}"
+echo "${INFO_MSG2}\n"
+
+if echo "${BRANCH}" | grep -Eq "${BRANCH_PATTERN}" ; then
+   echo "Branch name: \e[34m${BRANCH}\e[0m"
+   echo "Commit message: \e[33m${COMMIT_MSG}\e[0m"
+   if echo "${COMMIT_MSG}" | grep -Eq "${COMMIT_MSG_PATTERN}" ; then
+      echo "\e[32mOk\e[0m"
+   else
+      echo "\e[31mWrong commit message!\e[0m"
+      echo "\nUse: '${COMMIT_MSG_PATTERN} your message'"
+      echo "Example: ${COMMIT_MSG_EXAMPLE}"
+      echo "Info: ${INFO_SKIP_HOOK_MSG}"
+      exit 1
+   fi
+fi
+exit 0

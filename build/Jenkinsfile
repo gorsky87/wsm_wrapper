@@ -1,0 +1,80 @@
+pipeline {
+
+  agent any
+
+  parameters {
+    gitParameter(name: 'branch', branchFilter: 'origin/(.*)', defaultValue: 'master', type: 'PT_BRANCH_TAG', useRepository: params.app_repo)
+    string      (name: 'target', defaultValue: params.target ?: 'web-01.lan.droptica.org', description: '')
+    string      (name: 'site_name', defaultValue: params.site_name ?: '', description: '')
+    string      (name: 'app_repo', defaultValue: params.app_repo ?: '', description: '')
+  }
+
+  options {
+    ansiColor('xterm')
+    timestamps()
+  }
+
+  stages {
+
+    stage('Clone repo') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Clone scm-ansible') {
+      steps {
+        checkout([
+          $class: 'GitSCM',
+          branches: [[name: 'droop']],
+          doGenerateSubmoduleConfigurations: false,
+          extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'scm-ansible']],
+          submoduleCfg: [],
+          userRemoteConfigs: [[
+            url: 'git@bitbucket.org:droptica/scm-ansible.git',
+            credentialsId: 'c279944a-fc9e-467b-8361-f5c95d9f3c9d' // dropapi
+          ]]
+        ])
+        checkout([
+          $class: 'GitSCM',
+          branches: [[name: 'master']],
+          doGenerateSubmoduleConfigurations: false,
+          extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'scm-app']],
+          submoduleCfg: [],
+          userRemoteConfigs: [[
+            url: params.app_repo,
+            credentialsId: 'c279944a-fc9e-467b-8361-f5c95d9f3c9d' // dropapi
+          ]]
+        ])
+      }
+    }
+
+    stage('Deploy') {
+      steps {
+        script {
+            sh 'env'
+
+            withEnv([
+              "target_env=prod",
+              "target_server=${target}",      // CHeckout source to specified host
+              "repo_url=${GIT_URL}",          // Pass repository URL to ansible deployment script
+              "target_version=${GIT_BRANCH}", // Checkout source to specified branch, tag or SHA
+              "site_name=${site_name}",       // Site will be deployed to this directory (under /opt/sites/{{ target_server }})
+              "app_repo=${app_repo}",
+              "app_version=${branch}",
+              // on droopler build there is enabled another type of build
+              "skip_build=1",                 // Disable or enable running of ansible build while deploy
+              //
+              "perform_build_profile=1",
+              "skip_create_files_dir=0",      // Disable or enable creation of /opt/files and /opt/backups directories
+              "run_exec_dist=1",              // Run exec bash file with prepare operation
+              "ANSIBLE_HOST_KEY_CHECKING=False",
+              "ANSIBLE_STDOUT_CALLBACK=unixy",
+            ]) {
+              sh 'ansible-playbook --key-file /var/jenkins_home/.ssh/id_rsa ./scm-ansible/deploy-new.yml -i "${target_server}:59184,"'
+            }
+        }
+      }
+    }
+  }
+}

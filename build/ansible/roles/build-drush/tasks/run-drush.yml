@@ -1,0 +1,6 @@
+---
+
+- name:  "drush -y -l {{ site }} {{ cmd }}"
+  shell: "drush -y -l {{ site }} {{ cmd }}"
+  args:
+    chdir: "{{ app_path }}"

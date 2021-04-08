@@ -1,0 +1,63 @@
+{
+  "repositories": [
+    {
+      "type": "git",
+      "url": "https://github.com/droptica/robo-paracept"
+    },
+    {
+      "type": "vcs",
+      "url": "https://github.com/droptica/codeception-drupal-bootstrap"
+    },
+    {
+      "type": "vcs",
+      "url": "https://github.com/droptica/codeception-drupal-users"
+    }
+  ],
+  "require": {
+    "behat/gherkin": "v4.6.2",
+    "codeception/codeception": "4.1.6",
+    "codeception/module-webdriver": "^1.1",
+    "codeception/module-asserts": "^1.2",
+    "codeception/module-db": "dev-master",
+    "codeception/module-rest": "dev-master",
+    "codeception/module-phpbrowser": "dev-master",
+    "codeception/phpunit-wrapper": "7.7.1",
+    "codeception/stub": "3.0.0",
+    "codeception/visualception": "dev-master",
+    "droptica/codeception-drupal-bootstrap": "dev-codeception",
+    "droptica/codeception-drupal-users": "dev-codeception",
+    "guzzlehttp/psr7": "1.6.1",
+    "phpunit/phpunit":  "7.5.1",
+    "psr/container":  "1.0.0",
+    "psr/http-message": "1.0.1",
+    "psr/log": "1.1.0",
+    "ralouphie/getallheaders": "3.0.3",
+    "sebastian/code-unit-reverse-lookup": "1.0.1",
+    "sebastian/comparator": "3.0.2",
+    "sebastian/diff": "3.0.2",
+    "sebastian/environment": "4.0.1",
+    "sebastian/exporter": "3.1.0",
+    "sebastian/global-state": "2.0.0",
+    "sebastian/object-enumerator": "3.0.3",
+    "sebastian/object-reflector": "1.1.1",
+    "sebastian/recursion-context": "3.0.0",
+    "sebastian/resource-operations": "2.0.1",
+    "sebastian/version": "2.0.1",
+    "symfony/browser-kit":  "v4.2.3",
+    "symfony/console": "v4.2.3",
+    "symfony/contracts": "v1.0.2",
+    "symfony/css-selector": "v4.2.3",
+    "symfony/dom-crawler": "v4.2.3",
+    "symfony/event-dispatcher": "v4.2.3",
+    "symfony/filesystem": "v4.2.3",
+    "symfony/finder": "v4.2.3",
+    "symfony/polyfill-ctype": "v1.10.0",
+    "symfony/polyfill-mbstring": "^1.12",
+    "symfony/process": "v4.2.3",
+    "symfony/yaml": "v4.2.3",
+    "theseer/tokenizer": "1.1.0",
+    "webmozart/assert":  "1.4.0",
+    "guncha25/drupal-codeception": "8.0.13",
+    "droptica/robo-paracept": "dev-master"
+  }
+}

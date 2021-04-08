@@ -1,0 +1,9 @@
+---
+
+- debug:
+    var: cmds
+
+- include_tasks: "run-per-site.yml"
+  loop:          "{{ cmds }}"
+  loop_control:
+    loop_var: cmd
