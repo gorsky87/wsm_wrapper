@@ -3,31 +3,29 @@ version: '3.6'
 services:
   php-dev:
     image: droptica/php-cli:${D_PHP_VERSION}
-    working_dir: /app/app
+    working_dir: /var/www/web
     env_file:
       - .env
     volumes:
-      - ..:/app
       - ./ansible:/etc/ansible
       - ../app:/var/www
-      - /opt/files/${D_HOST}/files:/var/www/web/sites/default/files
-      - /opt/files/${D_HOST}/private_files:/var/html/web/sites/default/private_files
     environment:
+      - DOCUMENT_ROOT=/var/www/web
       - COMPOSER_PATH=/app/app
       - PHP_MEMORY_LIMIT=-1
       - DRUSH_OPTIONS_URI=https://${D_HOST}
 
   apache:
-    image: ${IMAGE_TAG}
+    image: droptica/php-apache:${D_PHP_VERSION}
     restart: always
     volumes:
-      - /opt/files/${D_HOST}/files:/var/www/html/web/sites/default/files
-      - /opt/files/${D_HOST}/private_files:/var/www/html/web/sites/default/private_files
+      - ../app:/var/www
     labels:
       - "traefik.frontend.rule=Host:${D_HOST}${D_HOST_ADDITIONAL}"
       - "traefik.docker.network=traefik"
+    working_dir: /var/www/web
     environment:
-      - DOCUMENT_ROOT=/var/www/html/web
+      - DOCUMENT_ROOT=/var/www/web
     env_file:
       - .env
     networks:

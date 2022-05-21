@@ -36,6 +36,11 @@ services:
     volumes:
       - ../app:/var/www
     labels:
+            #- "traefik.enable=true"
+        #- "traefik.http.routers.apache.rule=Host(`wroclawscymotocyklisci.pl`)"
+        #- "traefik.http.routers.apache.tls=true"
+        #- "traefik.docker.network=traefik"
+        #- "traefik.http.routers.apache.tls.certresolver=myresolver"
       - "traefik.frontend.rule=Host:${D_HOST}${D_HOST_ADDITIONAL}"
       - "traefik.docker.network=traefik"
     working_dir: /var/www/web
